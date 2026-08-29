@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - LINKEDIN_LI_AT=${LINKEDIN_LI_AT}
+      - LINKEDIN_JSESSIONID=${LINKEDIN_JSESSIONID}
+      - USER_AGENT=${USER_AGENT}
+    env_file:
+      - .env
+    restart: unless-stopped

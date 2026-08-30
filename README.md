@@ -17,7 +17,12 @@ A production-grade, hosted Node.js & TypeScript microservice designed to extract
 
 ## 🎨 Interactive Web Dashboard & Live Preview
 
-When running locally or deployed over HTTPS, the root URL (`http://localhost:3000/`) serves a sleek, glassmorphism **Interactive Web Dashboard**:
+When running locally or deployed over HTTPS, the root URL (`https://tross-pluse.onrender.com/`) serves a sleek, glassmorphism **Interactive Web Dashboard**:
+
+> [!TIP]
+> **No Local Setup Required for Evaluation!**
+> Evaluators do **not** need to clone the repository or configure a local `.env` file to test the API with their own LinkedIn credentials.
+> Simply open the live **[Web Dashboard](https://tross-pluse.onrender.com)**, click **API Key & Auth Config**, and input your own `li_at` and `JSESSIONID` cookies directly in the Web UI! The application dynamically attaches `x-linkedin-li-at` and `x-linkedin-jsessionid` request headers to evaluate your credentials live over HTTPS.
 
 - 🔍 **Instant Search & Visual Dossier**: Test any LinkedIn profile URL with rich visual card rendering (Profile Photo, Cover Banner, Experience Timeline, Education, Skills, Certifications, and Languages).
 - 📄 **1-Click Markdown Dossier Export**: Download extracted profile data as a clean, formatted `.md` Markdown document.

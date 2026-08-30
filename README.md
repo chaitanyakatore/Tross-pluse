@@ -9,7 +9,7 @@
 ![Jest](https://img.shields.io/badge/Jest-29.7-red?style=for-the-badge&logo=jest)
 ![Docker](https://img.shields.io/badge/Docker-Ready-blue?style=for-the-badge&logo=docker)
 
-A production-grade, hosted Node.js & TypeScript microservice built for the **Tross Hiring Challenge**. This API accepts any LinkedIn profile URL or vanity username and extracts structured JSON profile data by directly reverse-engineering LinkedIn's internal HTTP REST Voyager endpoints—**purely over HTTP, without browser automation tools** (no Puppeteer, Playwright, or Selenium).
+A production-grade, hosted Node.js & TypeScript microservice designed to extract structured profile intelligence by reverse-engineering LinkedIn's internal HTTP REST Voyager endpoints—**purely over HTTP, without browser automation tools** (no Puppeteer, Playwright, or Selenium).
 
 </div>
 
@@ -19,9 +19,12 @@ A production-grade, hosted Node.js & TypeScript microservice built for the **Tro
 
 When running locally or deployed over HTTPS, the root URL (`http://localhost:3000/`) serves a sleek, glassmorphism **Interactive Web Dashboard**:
 
-- 🔍 **Instant Search**: Test any LinkedIn profile URL with visual profile rendering.
-- 📊 **Dual Views**: Toggle between visual card UI and formatted raw JSON payloads.
-- ⚡ **Presets**: One-click quick presets for testing (e.g. Satya Nadella, Bill Gates, Chaitanya Katore).
+- 🔍 **Instant Search & Visual Dossier**: Test any LinkedIn profile URL with rich visual card rendering (Profile Photo, Cover Banner, Experience Timeline, Education, Skills, Certifications, and Languages).
+- 📄 **1-Click Markdown Dossier Export**: Download extracted profile data as a clean, formatted `.md` Markdown document.
+- 💻 **Multi-Language Code Snippet Generator**: Instantly generates ready-to-use integration code for **`cURL`**, **`TypeScript / Node.js`**, and **`Python`**.
+- 🔑 **Dynamic Session Cookie & Auth Config**: Configure API Keys (`x-api-key`) and optional custom `li_at` & `JSESSIONID` session cookies directly in the Web UI for dynamic multi-tenant testing without editing `.env`.
+- 📊 **Multi-View Modes**: Toggle seamlessly between Executive Dossier, Prettified JSON Payload View, and Integration Snippets.
+- ⚡ **Live SLA & Tracing Badges**: Real-time indicators displaying `X-Cache: HIT` (<3ms) / `MISS`, request duration, and unique `X-Request-ID` correlation UUIDs.
 
 ---
 
@@ -51,12 +54,15 @@ flowchart TD
 
 - ⚡ **Pure HTTP Reverse-Engineering**: Zero headless browser overhead. Direct HTTP calls to LinkedIn's private Voyager REST API.
 - 🚀 **Sub-Millisecond In-Memory LRU Cache**: Caches parsed profile responses in RAM (1h TTL, 100 max capacity). Repeated queries return in **`<3ms`** with `X-Cache: HIT` header.
+- 📄 **Markdown Dossier Download**: Export extracted profiles directly to `.md` files from the Web UI.
+- 💻 **Multi-Language Code Generator**: Generates `cURL`, `TypeScript`, and `Python` integration code on the fly.
+- 🔑 **Dynamic Session Credentials UI**: Input custom `li_at` & `JSESSIONID` in the UI modal or pass `x-linkedin-li-at` & `x-linkedin-jsessionid` headers for multi-tenant testing.
 - 🛡️ **Rate Limiting & Tiered API Keys**: Standard-compliant rate limiting (`RateLimit-*` headers). Supports frictionless public demo tier (100 req/15m) and Enterprise Tier (`x-api-key: tross-enterprise-key`, 1000 req/15m).
 - 🆔 **Correlation Tracing IDs**: Attaches a unique `X-Request-ID` tracking UUID to every response header for enterprise observability.
 - 📊 **Real-Time SLA System Metrics**: System metrics endpoint (`GET /api/v1/metrics`) reporting hit ratios, RAM usage, and response latency.
 - 📊 **Structured JSON Output**: Standardized Pydantic/Zod response schemas (Name, Headline, Location, Bio, Work Experiences, Education, Skills, Certifications, and Languages).
 - 📘 **Interactive OpenAPI Docs**: Self-documenting Swagger UI served at `/docs`.
-- 🖥️ **Built-in Web Dashboard**: Beautiful Glassmorphism SaaS Web UI served at `/` with 1-click Markdown resume export.
+- 🖥️ **Built-in Web Dashboard**: Beautiful Glassmorphism SaaS Web UI served at `/`.
 - 🛡️ **Zero Secret Leaks**: Configured strictly via environment variables (`.env`).
 - 🐳 **Docker Containerization**: Multi-stage `Dockerfile` and `docker-compose.yml` for instant 1-click cloud deployment.
 

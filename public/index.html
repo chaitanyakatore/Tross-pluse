@@ -99,6 +99,13 @@
 
       <!-- Navigation Actions -->
       <div class="flex items-center space-x-3">
+        <button onclick="toggleGuideModal()" class="px-3.5 py-2 text-xs font-semibold rounded-xl bg-gray-900/80 hover:bg-gray-800 text-gray-300 border border-gray-800 transition flex items-center space-x-2">
+          <svg class="w-3.5 h-3.5 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+          </svg>
+          <span>User Guide</span>
+        </button>
+
         <button onclick="fetchMetricsModal()" class="px-3.5 py-2 text-xs font-semibold rounded-xl bg-gray-900/80 hover:bg-gray-800 text-gray-300 border border-gray-800 transition flex items-center space-x-2">
           <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
@@ -140,10 +147,9 @@
           <span class="font-mono text-cyan-300 font-semibold">Voyager REST + SDUI Engine</span>
         </div>
       </div>
-      <div class="flex items-center space-x-1.5 text-gray-500">
-        <span>Tross Hiring Challenge</span>
-        <span>•</span>
-        <span class="text-gray-300">Software Engineering Role</span>
+      <div class="flex items-center space-x-2 text-xs">
+        <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <span class="text-emerald-400 font-semibold font-mono">System Operational</span>
       </div>
     </div>
   </div>
@@ -180,7 +186,7 @@
               type="url" 
               id="profileUrl" 
               required 
-              placeholder="Paste LinkedIn Profile URL (e.g. https://www.linkedin.com/in/satyanadella/)" 
+              placeholder="Paste LinkedIn Profile URL (e.g. https://www.linkedin.com/in/chaitanya-katore-87964921b/)" 
               class="w-full pl-11 pr-4 py-3.5 bg-gray-900/90 border border-gray-800 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent text-sm transition font-mono"
               value="https://www.linkedin.com/in/chaitanya-katore-87964921b/"
             >
@@ -200,18 +206,10 @@
 
       <!-- Demo Profile Chips -->
       <div class="flex flex-wrap items-center justify-center gap-2 mt-5 text-xs">
-        <span class="text-gray-500 font-semibold">Demo Targets:</span>
-        <button onclick="loadPreset('https://www.linkedin.com/in/chaitanya-katore-87964921b/')" class="px-3 py-1.5 rounded-xl bg-gray-900/90 hover:bg-gray-800 text-gray-300 border border-gray-800 transition flex items-center space-x-1.5">
+        <span class="text-gray-500 font-semibold">Try Preset:</span>
+        <button onclick="loadPreset('https://www.linkedin.com/in/chaitanya-katore-87964921b/')" class="px-3.5 py-1.5 rounded-xl bg-gray-900/90 hover:bg-gray-800 text-gray-300 border border-gray-800 transition flex items-center space-x-2">
           <span class="w-2 h-2 rounded-full bg-brand-400"></span>
-          <span>Chaitanya Katore (Software Developer)</span>
-        </button>
-        <button onclick="loadPreset('https://www.linkedin.com/in/satyanadella/')" class="px-3 py-1.5 rounded-xl bg-gray-900/90 hover:bg-gray-800 text-gray-300 border border-gray-800 transition flex items-center space-x-1.5">
-          <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-          <span>Satya Nadella (Microsoft CEO)</span>
-        </button>
-        <button onclick="loadPreset('https://www.linkedin.com/in/williamhgates/')" class="px-3 py-1.5 rounded-xl bg-gray-900/90 hover:bg-gray-800 text-gray-300 border border-gray-800 transition flex items-center space-x-1.5">
-          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-          <span>Bill Gates (Gates Foundation)</span>
+          <span>Chaitanya Katore Profile</span>
         </button>
       </div>
     </div>
@@ -441,6 +439,53 @@
 
   </main>
 
+  <!-- User Guide & Setup Modal -->
+  <div id="guideModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
+    <div class="glass-card w-full max-w-2xl p-6 rounded-2xl space-y-5 border border-gray-700 shadow-2xl max-h-[85vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-gray-800 pb-3">
+        <h3 class="text-base font-bold text-white flex items-center space-x-2">
+          <span>Application Guide & Documentation</span>
+        </h3>
+        <button onclick="toggleGuideModal()" class="text-gray-400 hover:text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      
+      <div class="space-y-4 text-xs text-gray-300 leading-relaxed">
+        <div class="p-3.5 bg-gray-950 rounded-xl border border-gray-800">
+          <h4 class="font-bold text-brand-300 text-sm mb-1">🚀 Quick Start Guide</h4>
+          <p>Paste any target LinkedIn profile URL into the search bar (e.g., <code class="text-emerald-400">https://www.linkedin.com/in/vanity-id/</code>) and click <strong>Run Pipeline</strong>. The system returns structured JSON including Name, Headline, Location, Bio, Experience, Education, Skills, Certifications, and Profile Images.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="p-3.5 bg-gray-950 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-white mb-1">🔒 Zero-Cookie Public Mode</h4>
+            <p class="text-gray-400">By default, standard searches execute via unauthenticated public extraction. This mode transmits zero session cookies, eliminating browser session logout risks.</p>
+          </div>
+          <div class="p-3.5 bg-gray-950 rounded-xl border border-gray-800">
+            <h4 class="font-bold text-white mb-1">⚡ In-Memory LRU Caching</h4>
+            <p class="text-gray-400">Profile payloads are cached in RAM for 1 hour. Repeated requests return in <code class="text-emerald-400">&lt;3ms</code> with the <code class="text-emerald-400">X-Cache: HIT</code> header.</p>
+          </div>
+        </div>
+
+        <div class="p-3.5 bg-gray-950 rounded-xl border border-gray-800 space-y-2">
+          <h4 class="font-bold text-white">🔑 Rate Limit Tiers & Authentication</h4>
+          <p class="text-gray-400">Pass the <code class="text-brand-300">x-api-key</code> header to unlock higher rate limits:</p>
+          <ul class="list-disc pl-4 space-y-1 font-mono text-[11px]">
+            <li><strong class="text-emerald-400">Enterprise Tier</strong> (<code class="text-brand-300">x-api-key: tross-enterprise-key</code>): 1,000 requests per 15 mins.</li>
+            <li><strong class="text-amber-400">Demo Tier</strong> (<code class="text-brand-300">x-api-key: tross-demo-key</code>): 100 requests per 15 mins.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="flex justify-end border-t border-gray-800 pt-3">
+        <button onclick="toggleGuideModal()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-brand-600 hover:bg-brand-500 text-white">Got It</button>
+      </div>
+    </div>
+  </div>
+
   <!-- System SLA Metrics Modal -->
   <div id="metricsModal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
     <div class="glass-card w-full max-w-lg p-6 rounded-2xl space-y-5 border border-gray-700 shadow-2xl">
@@ -486,7 +531,7 @@
     <div class="glass-card w-full max-w-lg p-6 rounded-2xl space-y-5 border border-gray-700 shadow-2xl">
       <div class="flex items-center justify-between border-b border-gray-800 pb-3">
         <h3 class="text-base font-bold text-white flex items-center space-x-2">
-          <span>API Key & Auth Settings</span>
+          <span>API Key & Session Authentication</span>
         </h3>
         <button onclick="toggleSettingsModal()" class="text-gray-400 hover:text-white">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -497,28 +542,33 @@
       
       <div class="space-y-4 text-xs">
         <div>
-          <label class="block font-semibold text-gray-300 mb-1">API Key (<code class="text-brand-300">x-api-key</code>)</label>
-          <div class="flex space-x-2">
-            <input type="text" id="customApiKey" value="tross-enterprise-key" class="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white font-mono focus:outline-none focus:border-brand-500">
-            <button onclick="setApiKey('tross-enterprise-key')" class="px-3 py-2 bg-brand-600 hover:bg-brand-500 text-white font-bold rounded-xl whitespace-nowrap">Use Enterprise Key</button>
+          <label class="block font-semibold text-gray-300 mb-1">Rate Limit API Key (<code class="text-brand-300">x-api-key</code>)</label>
+          <input type="text" id="customApiKey" value="tross-enterprise-key" class="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white font-mono focus:outline-none focus:border-brand-500 mb-2">
+          
+          <div class="flex items-center space-x-2">
+            <span class="text-gray-500">Preset Tiers:</span>
+            <button onclick="setApiKey('tross-enterprise-key')" class="px-2.5 py-1 bg-brand-600/30 hover:bg-brand-600/50 text-brand-300 border border-brand-500/30 rounded-lg font-mono">Enterprise (1k req/15m)</button>
+            <button onclick="setApiKey('tross-demo-key')" class="px-2.5 py-1 bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700 rounded-lg font-mono">Demo (100 req/15m)</button>
           </div>
-          <p class="text-[11px] text-gray-500 mt-1">Valid Enterprise Keys: <code class="text-brand-400 font-mono">tross-enterprise-key</code>, <code class="text-brand-400 font-mono">tross-demo-key</code></p>
         </div>
 
         <div class="border-t border-gray-800 pt-3 space-y-3">
+          <div class="p-2.5 bg-gray-950/60 rounded-xl border border-gray-800 text-[11px] text-gray-400">
+            <span class="text-brand-300 font-bold">Session Cookie Override:</span> By default, backend <code class="text-emerald-400">.env</code> credentials are used. Enter values below only if overriding credentials for custom multi-tenant testing.
+          </div>
           <div>
-            <label class="block font-semibold text-gray-300 mb-1">Custom <code class="text-brand-300">li_at</code> Cookie (Optional Tenant Override)</label>
+            <label class="block font-semibold text-gray-300 mb-1"><code class="text-brand-300">li_at</code> Cookie (Optional Override)</label>
             <input type="text" id="customLiAt" placeholder="AQED..." class="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white font-mono focus:outline-none focus:border-brand-500">
           </div>
           <div>
-            <label class="block font-semibold text-gray-300 mb-1">Custom <code class="text-brand-300">JSESSIONID</code> Cookie (CSRF Token Override)</label>
+            <label class="block font-semibold text-gray-300 mb-1"><code class="text-brand-300">JSESSIONID</code> Cookie (Optional CSRF Override)</label>
             <input type="text" id="customJsessionId" placeholder='ajax:123456789...' class="w-full px-3 py-2.5 bg-gray-950 border border-gray-800 rounded-xl text-white font-mono focus:outline-none focus:border-brand-500">
           </div>
         </div>
       </div>
       
       <div class="flex justify-end space-x-2 pt-2">
-        <button onclick="toggleSettingsModal()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-gray-800 text-gray-300 hover:bg-gray-700">Save Configuration</button>
+        <button onclick="toggleSettingsModal()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-brand-600 hover:bg-brand-500 text-white">Save Configuration</button>
       </div>
     </div>
   </div>
@@ -852,6 +902,10 @@ print(profile_data)`;
 
     function toggleMetricsModal() {
       document.getElementById('metricsModal').classList.toggle('hidden');
+    }
+
+    function toggleGuideModal() {
+      document.getElementById('guideModal').classList.toggle('hidden');
     }
 
     function escapeHtml(str) {

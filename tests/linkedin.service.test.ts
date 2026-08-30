@@ -26,7 +26,7 @@ describe('LinkedInService Unit Tests', () => {
   describe('getHeaders formatting (via CSRF token logic)', () => {
     it('should strip surrounding quotes from JSESSIONID when forming csrf-token', () => {
       const getHeadersMethod = (linkedInService as any)['getHeaders'].bind(linkedInService);
-      const headers = getHeadersMethod('mock_li_at', '"ajax:123456789"');
+      const headers = getHeadersMethod('satyanadella', 'mock_li_at', '"ajax:123456789"');
 
       expect(headers['csrf-token']).toBe('ajax:123456789');
       expect(headers['x-restli-protocol-version']).toBe('2.0.0');

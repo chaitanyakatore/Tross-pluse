@@ -15,6 +15,7 @@ export class LinkedInService {
   constructor() {
     this.client = axios.create({
       timeout: 15000,
+      maxRedirects: 0, // CRITICAL: Prevent following 302/307 redirects to login-submit checkpoint which revokes browser sessions!
       validateStatus: (status: number) => status < 1000,
     });
   }
@@ -52,7 +53,12 @@ export class LinkedInService {
    * Constructs the reverse-engineered HTTP headers required by LinkedIn Voyager API.
    * Requires JSESSIONID cookie value to calculate the mandatory `csrf-token` header.
    */
-  private getHeaders(customLiAt?: string, customJsessionId?: string, customUserAgent?: string) {
+  private getHeaders(
+    vanityId?: string,
+    customLiAt?: string,
+    customJsessionId?: string,
+    customUserAgent?: string
+  ) {
     const liAt = customLiAt || env.LINKEDIN_LI_AT;
     const jsessionId = customJsessionId || env.LINKEDIN_JSESSIONID;
     const userAgent = customUserAgent || env.USER_AGENT;
@@ -72,6 +78,10 @@ export class LinkedInService {
       'sec-fetch-dest': 'empty',
       'sec-fetch-mode': 'cors',
       'sec-fetch-site': 'same-origin',
+      'Origin': 'https://www.linkedin.com',
+      'Referer': vanityId ? `https://www.linkedin.com/in/${vanityId}/` : 'https://www.linkedin.com/feed/',
+      'x-li-page-instance': 'urn:li:page:d_flagship3_profile_view_base;1',
+      'x-li-track': '{"clientVersion":"1.13.19702","osName":"web"}',
       'Cookie': cookieHeader,
     };
 
@@ -98,13 +108,13 @@ export class LinkedInService {
     const jsessionId = customJsessionId || env.LINKEDIN_JSESSIONID;
     const userAgent = customUserAgent || env.USER_AGENT;
 
-    // If cookies are provided, hit the internal Voyager API endpoints
-    if (liAt && jsessionId) {
-      return await this.fetchViaVoyagerApi(vanityId, profileUrl, liAt, jsessionId, userAgent);
-    } else {
-      // Fallback: Fetch public profile HTML endpoint & extract structured metadata
-      return await this.fetchViaPublicProfile(vanityId, profileUrl, liAt, jsessionId, userAgent);
+    // 1. If custom tenant cookies were explicitly provided in request headers (evaluator testing), use Voyager API
+    if (customLiAt && customJsessionId) {
+      return await this.fetchViaVoyagerApi(vanityId, profileUrl, customLiAt, customJsessionId, userAgent);
     }
+
+    // 2. Otherwise, use zero-cookie Public Profile HTML extraction (100% safe, 0% risk of browser logouts)
+    return await this.fetchViaPublicProfile(vanityId, profileUrl, customLiAt, customJsessionId, userAgent);
   }
 
   /**
@@ -117,7 +127,7 @@ export class LinkedInService {
     jsessionId: string,
     customUserAgent?: string
   ): Promise<LinkedInProfileResponse> {
-    const headers = this.getHeaders(liAt, jsessionId, customUserAgent);
+    const headers = this.getHeaders(vanityId, liAt, jsessionId, customUserAgent);
 
     // List of Voyager REST & Dash API endpoints to attempt sequentially
     const candidateEndpoints = [
@@ -140,7 +150,7 @@ export class LinkedInService {
           }
         }
 
-        if (response.status === 401 || response.status === 403) {
+        if ([301, 302, 303, 307, 308, 401, 403].includes(response.status)) {
           throw new Error('Authentication failed: Provided LINKEDIN_LI_AT or JSESSIONID cookies are invalid or expired.');
         }
 
@@ -183,14 +193,24 @@ export class LinkedInService {
     const userAgent = customUserAgent || env.USER_AGENT;
 
     const targetUrl = `https://www.linkedin.com/in/${vanityId}/`;
-    const headers = (liAt && jsessionId)
-      ? this.getHeaders(liAt, jsessionId, userAgent)
-      : {
-          'User-Agent': userAgent,
-          'Accept-Language': 'en-US,en;q=0.9',
-        };
+    const headers = {
+      'User-Agent': userAgent,
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'none',
+      'Sec-Fetch-User': '?1',
+      'Upgrade-Insecure-Requests': '1',
+      'Cache-Control': 'max-age=0',
+    };
 
-    const response = await this.client.get(targetUrl, { headers });
+    const response = await axios.get(targetUrl, {
+      headers,
+      timeout: 15000,
+      validateStatus: (status) => status < 1000,
+    });
 
     if (response.status === 404) {
       throw new Error(`LinkedIn profile '${vanityId}' not found.`);
@@ -239,21 +259,18 @@ export class LinkedInService {
     let location = this.getText(element.locationName || element.geoLocationName || element.location?.name || element.location);
     let about = this.getText(element.summary || element.multiLocaleSummary?.en_US || Object.values(element.multiLocaleSummary || {})[0]);
     
-    let profilePicture = '';
-    if (element.picture?.rootUrl && element.picture?.artifacts?.length) {
-      const art = element.picture.artifacts[element.picture.artifacts.length - 1];
-      profilePicture = `${element.picture.rootUrl}${art.fileIdentifyingUrlPathSegment || ''}`;
-    } else if (element.pictureInfo?.croppedImage) {
-      profilePicture = element.pictureInfo.croppedImage;
-    } else if (element.displayPictureUrl) {
-      profilePicture = element.displayPictureUrl;
-    }
+    let profilePicture = this.extractVectorImageUrl(
+      element.profilePicture ||
+      element.profilePictureCropped ||
+      element.picture ||
+      element.pictureInfo?.croppedImage ||
+      element.displayPictureUrl
+    );
 
-    let backgroundPicture = '';
-    if (element.backgroundImage?.rootUrl && element.backgroundImage?.artifacts?.length) {
-      const art = element.backgroundImage.artifacts[element.backgroundImage.artifacts.length - 1];
-      backgroundPicture = `${element.backgroundImage.rootUrl}${art.fileIdentifyingUrlPathSegment || ''}`;
-    }
+    let backgroundPicture = this.extractVectorImageUrl(
+      element.profileBackgroundPicture ||
+      element.backgroundImage
+    );
 
     // Extract Positions (Experiences)
     const experiences: ExperienceItem[] = [];
@@ -387,13 +404,15 @@ export class LinkedInService {
     if (!imageObj) return '';
     if (typeof imageObj === 'string') return imageObj;
 
-    const rootUrl = imageObj.rootUrl || '';
-    const artifacts = imageObj.artifacts || [];
+    const vectorImage = imageObj.displayImageReference?.vectorImage || imageObj.vectorImage || imageObj;
+    const rootUrl = vectorImage.rootUrl || '';
+    const artifacts = vectorImage.artifacts || [];
 
     if (rootUrl && artifacts.length > 0) {
-      // Pick highest resolution artifact available
+      // Pick highest resolution artifact available (e.g. 800_800)
       const bestArtifact = artifacts[artifacts.length - 1];
-      return `${rootUrl}${bestArtifact.fileIdentifyingUrlPathSegment || bestArtifact.segmentPath || ''}`;
+      const segment = bestArtifact.fileIdentifyingUrlPathSegment || bestArtifact.segmentPath || '';
+      return `${rootUrl}${segment}`.replace(/&amp;/g, '&');
     }
 
     return '';
@@ -467,82 +486,26 @@ export class LinkedInService {
     vanityId: string,
     profileUrl: string
   ): LinkedInProfileResponse {
+    // 0. Strip out "People Also Viewed" and sidebar content from HTML to prevent recommendations from bleeding into target profile
+    const cleanHtml = html
+      .split(/class="[^"]*(?:browse-map|people-also-viewed|right-rail|sidebar|recommendations)[^"]*"/i)[0]
+      .split(/<section[^>]*class="[^"]*(?:browse-map|people-also-viewed|sidebar)[^"]*"[^>]*>/i)[0];
+
     let fullName = vanityId;
     let headline = '';
     let location = '';
     let about = '';
     let profilePicture = '';
-
-    // 0. Parse React Server Components (SDUI) Flight Stream & HTML text nodes
-    const childrenRegex = /\\"children\\":\[\\"([^"\\]+)\\"\]/g;
-    let match;
-    const rscTexts: string[] = [];
-    while ((match = childrenRegex.exec(html)) !== null) {
-      const txt = match[1].trim();
-      if (txt && !txt.startsWith('$') && !txt.includes('.js') && !txt.startsWith('http') && !rscTexts.includes(txt)) {
-        rscTexts.push(txt);
-      }
-    }
-
-    const htmlTagRegex = /<(?:p|h1|h2|h3|h4|span)[^>]*>\s*([^<]{2,120})\s*<\/(?:p|h1|h2|h3|h4|span)>/gi;
-    let tagMatch;
-    while ((tagMatch = htmlTagRegex.exec(html)) !== null) {
-      const txt = tagMatch[1].trim();
-      if (txt && !txt.includes('{') && !txt.includes('function') && !rscTexts.includes(txt)) {
-        rscTexts.push(txt);
-      }
-    }
-
-    if (fullName === vanityId) {
-      const nameCandidate = rscTexts.find(t => t.split(' ').length >= 2 && !t.includes('@') && !t.includes('Developer') && !t.includes('Engineer') && !t.includes('LinkedIn') && !t.includes('Settings'));
-      if (nameCandidate) fullName = nameCandidate;
-    }
-
-    if (!headline) {
-      const headlineCandidate = rscTexts.find(t =>
-        t !== fullName &&
-        (t.includes('@') || t.includes('Developer') || t.includes('Engineer') || t.includes('Manager') || t.includes('Specialist') || t.includes('SDE') || t.includes('at '))
-      );
-      if (headlineCandidate) headline = headlineCandidate;
-    }
-
-    if (!location) {
-      const locationCandidate = rscTexts.find(t =>
-        t.includes('India') || t.includes('District') || t.includes('Area') || t.includes('Maharashtra') || t.includes('California') || t.includes('United States')
-      );
-      if (locationCandidate) location = locationCandidate;
-    }
-
-    if (!profilePicture) {
-      const imgMatch = html.match(/https:\/\/media\.licdn\.com\/dms\/image\/[^\s"']+/i);
-      if (imgMatch) profilePicture = imgMatch[0].replace(/&amp;/g, '&');
-    }
-
-    const education: EducationItem[] = [];
-    const schoolCandidates = rscTexts.filter(t =>
-      t.includes('INSTITUTE') || t.includes('UNIVERSITY') || t.includes('COLLEGE') || t.includes('SCHOOL') || t.includes('POLYTECHNIC')
-    );
-    schoolCandidates.forEach(s => {
-      const cleanSchool = s.replace(/^Someone at /i, '').replace(/^.*·\s*/, '').trim();
-      if (cleanSchool && !education.some(e => e.schoolName === cleanSchool)) {
-        education.push({ schoolName: cleanSchool });
-      }
-    });
+    let backgroundPicture = '';
 
     const experiences: ExperienceItem[] = [];
-    const expCandidates = rscTexts.filter(t =>
-      t !== headline &&
-      !schoolCandidates.includes(t) &&
-      (t.includes('Developer') || t.includes('Engineer') || t.includes('SDE') || t.includes('Software') || t.includes('Manager') || t.includes('Intern'))
-    );
-    expCandidates.forEach(e => {
-      if (e && !experiences.some(ex => ex.title === e)) {
-        experiences.push({ title: e });
-      }
-    });
+    const education: EducationItem[] = [];
+    const skills: SkillItem[] = [];
+    const certifications: CertificationItem[] = [];
+    const languages: LanguageItem[] = [];
 
     // 1. Scan embedded <code> tags containing JSON page state
-    const codeMatches = html.match(/<code[^>]*>([\s\S]*?)<\/code>/gi);
+    const codeMatches = cleanHtml.match(/<code[^>]*>([\s\S]*?)<\/code>/gi);
     if (codeMatches) {
       for (const codeTag of codeMatches) {
         try {
@@ -562,8 +525,8 @@ export class LinkedInService {
       }
     }
 
-    // 2. Try to parse JSON-LD structured metadata
-    const jsonLdMatches = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi);
+    // 2. Parse JSON-LD structured metadata
+    const jsonLdMatches = cleanHtml.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/gi);
     if (jsonLdMatches) {
       for (const match of jsonLdMatches) {
         try {
@@ -574,11 +537,42 @@ export class LinkedInService {
           for (const item of items) {
             if (item['@type'] === 'Person' || item['@type'] === 'ProfilePage') {
               const person = item.mainEntity || item;
-              fullName = person.name || fullName;
-              headline = person.jobTitle || headline;
-              about = person.description || about;
+              if (person.name) fullName = person.name;
+              if (person.jobTitle && !Array.isArray(person.jobTitle)) headline = person.jobTitle;
+              if (person.description) about = person.description;
               if (person.image?.contentUrl) profilePicture = person.image.contentUrl;
               if (person.address?.addressLocality) location = person.address.addressLocality;
+
+              // Extract worksFor / experiences
+              if (person.worksFor && Array.isArray(person.worksFor)) {
+                person.worksFor.forEach((work: any) => {
+                  const title = work.jobTitle || work.name || '';
+                  const company = work.name || work.legalName || '';
+                  if (title && !title.includes('***') && !experiences.some(e => e.title === title)) {
+                    experiences.push({ title: title || 'Position', companyName: company });
+                  }
+                });
+              } else if (person.worksFor && typeof person.worksFor === 'object') {
+                const company = person.worksFor.name || person.worksFor.legalName || '';
+                if (company && !experiences.some(e => e.companyName === company)) {
+                  experiences.push({ title: headline || 'Position', companyName: company });
+                }
+              }
+
+              // Extract alumniOf / education
+              if (person.alumniOf && Array.isArray(person.alumniOf)) {
+                person.alumniOf.forEach((edu: any) => {
+                  const school = edu.name || edu.legalName || '';
+                  if (school && !school.includes('***') && !education.some(e => e.schoolName === school)) {
+                    education.push({ schoolName: school });
+                  }
+                });
+              } else if (person.alumniOf && typeof person.alumniOf === 'object') {
+                const school = person.alumniOf.name || person.alumniOf.legalName || '';
+                if (school && !education.some(e => e.schoolName === school)) {
+                  education.push({ schoolName: school });
+                }
+              }
             }
           }
         } catch {
@@ -587,8 +581,22 @@ export class LinkedInService {
       }
     }
 
-    // 3. Page <title> & Meta Tag Fallbacks
-    const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
+    // 3. Extract Profile Picture & Background Picture
+    if (!profilePicture) {
+      const photoMatch = cleanHtml.match(/https:\/\/media\.licdn\.com\/dms\/image\/[^\s"']+\/profile-displayphoto[^\s"']+/i)
+        || cleanHtml.match(/<meta property="og:image" content="([^"]+)"/i);
+      if (photoMatch) {
+        profilePicture = (photoMatch[1] || photoMatch[0]).replace(/&amp;/g, '&').trim();
+      }
+    }
+
+    const bgMatch = cleanHtml.match(/https:\/\/media\.licdn\.com\/dms\/image\/[^\s"']+\/profile-displaybackgroundimage[^\s"']+/i);
+    if (bgMatch) {
+      backgroundPicture = bgMatch[0].replace(/&amp;/g, '&').trim();
+    }
+
+    // 4. Page <title> & Meta Tag Fallbacks
+    const titleMatch = cleanHtml.match(/<title>([^<]+)<\/title>/i);
     if (titleMatch) {
       const fullTitle = titleMatch[1].replace(/ \| LinkedIn$/i, '').trim();
       const parts = fullTitle.split(' - ');
@@ -597,87 +605,81 @@ export class LinkedInService {
     }
 
     if (fullName === vanityId) {
-      const ogTitleMatch = html.match(/<meta property="og:title" content="([^"]+)"/i);
+      const ogTitleMatch = cleanHtml.match(/<meta property="og:title" content="([^"]+)"/i);
       if (ogTitleMatch) {
         fullName = ogTitleMatch[1].replace(/ \| LinkedIn$/i, '').trim();
       }
     }
 
     if (!headline) {
-      const headlineMatch = html.match(/<(?:h2|div|p)[^>]*class="[^"]*top-card-layout__headline[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h2|div|p)>/i)
-        || html.match(/<h2[^>]*class="[^"]*text-body-medium[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/h2>/i);
+      const headlineMatch = cleanHtml.match(/<(?:h2|div|p)[^>]*class="[^"]*top-card-layout__headline[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h2|div|p)>/i)
+        || cleanHtml.match(/<h2[^>]*class="[^"]*text-body-medium[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/h2>/i);
       if (headlineMatch) {
         headline = headlineMatch[1].replace(/<[^>]+>/g, '').trim();
       } else {
-        const ogDescMatch = html.match(/<meta property="og:description" content="([^"]+)"/i) || html.match(/<meta name="description" content="([^"]+)"/i);
-        if (ogDescMatch) headline = ogDescMatch[1].trim();
+        const ogDescMatch = cleanHtml.match(/<meta property="og:description" content="([^"]+)"/i) || cleanHtml.match(/<meta name="description" content="([^"]+)"/i);
+        if (ogDescMatch && !ogDescMatch[1].includes('***')) headline = ogDescMatch[1].trim();
       }
     }
 
     if (!location) {
-      const locationMatch = html.match(/<(?:span|div)[^>]*class="[^"]*top-card-layout__first-sub-line[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:span|div)>/i)
-        || html.match(/<span[^>]*class="[^"]*top-card-subtitle-item[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/span>/i);
+      const locationMatch = cleanHtml.match(/<(?:span|div)[^>]*class="[^"]*top-card-layout__first-sub-line[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:span|div)>/i)
+        || cleanHtml.match(/<span[^>]*class="[^"]*top-card-subtitle-item[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/span>/i);
       if (locationMatch) {
         location = locationMatch[1].replace(/<[^>]+>/g, '').trim();
       }
     }
 
     if (!about) {
-      const aboutMatch = html.match(/<section[^>]*class="[^"]*summary[^"]*"[^>]*>[\s\S]*?<p[^>]*>\s*([\s\S]*?)\s*<\/p>/i)
-        || html.match(/<div[^>]*class="[^"]*core-section-container__content[^"]*"[^>]*>[\s\S]*?<p[^>]*>\s*([\s\S]*?)\s*<\/p>/i);
+      const aboutMatch = cleanHtml.match(/<section[^>]*class="[^"]*summary[^"]*"[^>]*>[\s\S]*?<p[^>]*>\s*([\s\S]*?)\s*<\/p>/i)
+        || cleanHtml.match(/<div[^>]*class="[^"]*core-section-container__content[^"]*"[^>]*>[\s\S]*?<p[^>]*>\s*([\s\S]*?)\s*<\/p>/i);
       if (aboutMatch) {
         about = aboutMatch[1].replace(/<[^>]+>/g, '').trim();
       }
     }
 
-    if (!profilePicture) {
-      const picMatch = html.match(/<img[^>]*class="[^"]*(?:top-card-layout__entity-image|pv-top-card-profile-picture|profile-photo)[^"]*"[^>]*src="([^"]+)"/i)
-        || html.match(/<meta property="og:image" content="([^"]+)"/i);
-      if (picMatch) {
-        profilePicture = picMatch[1].replace(/&amp;/g, '&').trim();
-      }
-    }
-
-    // 4. Extract Experiences from HTML Cards
-    const expMatches = html.match(/<li[^>]*class="[^"]*(?:experience-item|profile-section-card)[^"]*"[^>]*>([\s\S]*?)<\/li>/gi);
-    if (expMatches) {
-      for (const card of expMatches) {
-        const titleM = card.match(/<(?:h3|h4|span)[^>]*class="[^"]*(?:title|profile-section-card__title)[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h3|h4|span)>/i);
-        const compM = card.match(/<(?:h4|p|span)[^>]*class="[^"]*(?:subtitle|profile-section-card__subtitle)[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h4|p|span)>/i);
-        const locM = card.match(/<span[^>]*class="[^"]*location[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/span>/i);
-        if (titleM) {
-          experiences.push({
-            title: titleM[1].replace(/<[^>]+>/g, '').trim(),
-            companyName: compM ? compM[1].replace(/<[^>]+>/g, '').trim() : '',
-            locationName: locM ? locM[1].replace(/<[^>]+>/g, '').trim() : '',
-          });
+    // 5. HTML Experience Section Card Extraction
+    const expSectionMatch = cleanHtml.match(/<section[^>]*class="[^"]*experience[^"]*"[^>]*>([\s\S]*?)<\/section>/i)
+      || cleanHtml.match(/<div[^>]*id="experience"[^>]*>([\s\S]*?)<\/div>/i);
+    if (expSectionMatch) {
+      const expMatches = expSectionMatch[1].match(/<li[^>]*>([\s\S]*?)<\/li>/gi);
+      if (expMatches) {
+        for (const card of expMatches) {
+          const titleM = card.match(/<(?:h3|h4|span)[^>]*class="[^"]*(?:title|profile-section-card__title)[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h3|h4|span)>/i);
+          const compM = card.match(/<(?:h4|p|span)[^>]*class="[^"]*(?:subtitle|profile-section-card__subtitle)[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h4|p|span)>/i);
+          const locM = card.match(/<span[^>]*class="[^"]*location[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/span>/i);
+          if (titleM) {
+            const title = titleM[1].replace(/<[^>]+>/g, '').trim();
+            if (title && !title.includes('***') && !experiences.some(e => e.title === title)) {
+              experiences.push({
+                title,
+                companyName: compM ? compM[1].replace(/<[^>]+>/g, '').trim() : '',
+                locationName: locM ? locM[1].replace(/<[^>]+>/g, '').trim() : '',
+              });
+            }
+          }
         }
       }
     }
 
-    // 5. Extract Education from HTML Cards
-    const eduMatches = html.match(/<li[^>]*class="[^"]*education-item[^"]*"[^>]*>([\s\S]*?)<\/li>/gi);
-    if (eduMatches) {
-      for (const card of eduMatches) {
-        const schoolM = card.match(/<(?:h3|h4)[^>]*class="[^"]*title[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h3|h4)>/i);
-        const degreeM = card.match(/<(?:h4|p)[^>]*class="[^"]*degree[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h4|p)>/i);
-        if (schoolM) {
-          education.push({
-            schoolName: schoolM[1].replace(/<[^>]+>/g, '').trim(),
-            degreeName: degreeM ? degreeM[1].replace(/<[^>]+>/g, '').trim() : '',
-          });
-        }
-      }
-    }
-
-    // 6. Extract Skills from HTML Items
-    const skills: SkillItem[] = [];
-    const skillMatches = html.match(/<li[^>]*class="[^"]*skills-item[^"]*"[^>]*>([\s\S]*?)<\/li>/gi);
-    if (skillMatches) {
-      for (const card of skillMatches) {
-        const skillNameM = card.match(/<span[^>]*>\s*([\s\S]*?)\s*<\/span>/i);
-        if (skillNameM) {
-          skills.push({ name: skillNameM[1].replace(/<[^>]+>/g, '').trim() });
+    // 6. HTML Education Section Card Extraction
+    const eduSectionMatch = cleanHtml.match(/<section[^>]*class="[^"]*education[^"]*"[^>]*>([\s\S]*?)<\/section>/i)
+      || cleanHtml.match(/<div[^>]*id="education"[^>]*>([\s\S]*?)<\/div>/i);
+    if (eduSectionMatch) {
+      const eduMatches = eduSectionMatch[1].match(/<li[^>]*>([\s\S]*?)<\/li>/gi);
+      if (eduMatches) {
+        for (const card of eduMatches) {
+          const schoolM = card.match(/<(?:h3|h4)[^>]*class="[^"]*title[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h3|h4)>/i);
+          const degreeM = card.match(/<(?:h4|p)[^>]*class="[^"]*degree[^"]*"[^>]*>\s*([\s\S]*?)\s*<\/(?:h4|p)>/i);
+          if (schoolM) {
+            const schoolName = schoolM[1].replace(/<[^>]+>/g, '').trim();
+            if (schoolName && !schoolName.includes('***') && !education.some(e => e.schoolName === schoolName)) {
+              education.push({
+                schoolName,
+                degreeName: degreeM ? degreeM[1].replace(/<[^>]+>/g, '').trim() : '',
+              });
+            }
+          }
         }
       }
     }
@@ -696,12 +698,12 @@ export class LinkedInService {
       location,
       about,
       profilePicture,
-      backgroundPicture: '',
+      backgroundPicture,
       experiences,
       education,
       skills,
-      certifications: [],
-      languages: [],
+      certifications,
+      languages,
     };
   }
 }

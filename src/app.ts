@@ -3,11 +3,14 @@ import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
 import profileRoutes from './routes/profile.routes';
 
+import { tracingMiddleware } from './middlewares/tracing.middleware';
+
 export const app = express();
 
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(tracingMiddleware);
 
 // Health check endpoint
 app.get('/health', (_req: Request, res: Response) => {

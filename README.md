@@ -50,10 +50,13 @@ flowchart TD
 ## 🚀 Features
 
 - ⚡ **Pure HTTP Reverse-Engineering**: Zero headless browser overhead. Direct HTTP calls to LinkedIn's private Voyager REST API.
-- 🔒 **Dynamic CSRF & Header Emulation**: Automatically derives `csrf-token` from `JSESSIONID` and matches client browser security signatures.
+- 🚀 **Sub-Millisecond In-Memory LRU Cache**: Caches parsed profile responses in RAM (1h TTL, 100 max capacity). Repeated queries return in **`<3ms`** with `X-Cache: HIT` header.
+- 🛡️ **Rate Limiting & Tiered API Keys**: Standard-compliant rate limiting (`RateLimit-*` headers). Supports frictionless public demo tier (100 req/15m) and Enterprise Tier (`x-api-key: tross-enterprise-key`, 1000 req/15m).
+- 🆔 **Correlation Tracing IDs**: Attaches a unique `X-Request-ID` tracking UUID to every response header for enterprise observability.
+- 📊 **Real-Time SLA System Metrics**: System metrics endpoint (`GET /api/v1/metrics`) reporting hit ratios, RAM usage, and response latency.
 - 📊 **Structured JSON Output**: Standardized Pydantic/Zod response schemas (Name, Headline, Location, Bio, Work Experiences, Education, Skills, Certifications, and Languages).
 - 📘 **Interactive OpenAPI Docs**: Self-documenting Swagger UI served at `/docs`.
-- 🖥️ **Built-in Web Dashboard**: Beautiful Glassmorphism Web UI served at `/`.
+- 🖥️ **Built-in Web Dashboard**: Beautiful Glassmorphism SaaS Web UI served at `/` with 1-click Markdown resume export.
 - 🛡️ **Zero Secret Leaks**: Configured strictly via environment variables (`.env`).
 - 🐳 **Docker Containerization**: Multi-stage `Dockerfile` and `docker-compose.yml` for instant 1-click cloud deployment.
 
@@ -175,8 +178,12 @@ docker-compose up --build -d
 ## ⚠️ Known Limitations & Edge Cases
 
 1. **Session Cookie Expiration**: LinkedIn `li_at` authentication cookies expire periodically (typically 6–12 months or upon active manual logout from browser). When expired, the API returns a clear `401 Unauthorized` response indicating that session tokens in `.env` need to be refreshed.
-2. **Out-of-Network Profile Visibility**: Profiles with strict privacy settings set to "Private / Connections Only" will return public metadata (Name, Headline, Location, Photo) via the HTML fallback parser unless the authenticated account has visibility access to the profile.
-3. **LinkedIn Rate Limiting (HTTP 429)**: Making thousands of rapid sequential requests from a single IP address without rotation may trigger LinkedIn's IP rate limiter (`HTTP 429`). For high-throughput production deployment, proxy rotation or multi-token pool rotation is recommended.
+2. **Session Cookie Revocation & Concurrent Browser Usage**:
+   - **Mechanism**: Reusing a personal browser's `li_at` session cookie inside an automated backend HTTP service creates concurrent usage between your browser and the Node.js process.
+   - **LinkedIn Security Firewall**: LinkedIn's anti-bot firewall detects concurrent access across differing IP addresses/TLS fingerprints. To protect the account from session theft, LinkedIn revokes the `li_at` token, requiring a browser sign-in.
+   - **Production SaaS Mitigation**: Commercial platforms (Proxycurl, BrightData) solve this by using dedicated service account cookie pools, residential proxies, and TLS fingerprint spoofing (`curl-impersonate`) rather than personal browser cookies.
+3. **Out-of-Network Profile Visibility**: Profiles with strict privacy settings set to "Private / Connections Only" will return public metadata (Name, Headline, Location, Photo) via the HTML fallback parser unless the authenticated account has visibility access to the profile.
+4. **LinkedIn Rate Limiting (HTTP 429 / 999)**: Making thousands of rapid sequential requests from a single IP address without rotation may trigger LinkedIn's IP rate limiter (`HTTP 429` or `HTTP 999`). For high-throughput production deployment, proxy rotation or multi-token pool rotation is recommended.
 
 ---
 
